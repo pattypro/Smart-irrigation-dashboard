@@ -1,64 +1,78 @@
+
 import streamlit as st
-import datetime
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# --- Sidebar Inputs ---
-st.sidebar.title("Input Parameters")
+st.title("Smart Irrigation Dashboard with CSV Upload")
 
-# Select crop stage
-stage = st.sidebar.selectbox("Tomato Growth Stage", ["Initial", "Vegetative", "Flowering", "Maturity"])
+# File uploader for CSV
+uploaded_file = st.sidebar.file_uploader("Upload Sensor Data (CSV)", type=["csv"])
 
-# Weather & sensor inputs
-ET0 = st.sidebar.number_input("Reference Evapotranspiration (ET₀) [mm/day]", min_value=0.0)
-forecast_rain = st.sidebar.number_input("Rain Forecast (next 6-12 hrs) [mm]", min_value=0.0)
-soil_moisture = st.sidebar.slider("Soil Moisture (% Field Capacity)", 0, 100, 60)
-NDVI = st.sidebar.slider("NDVI Index", 0.0, 1.0, 0.7)
+if uploaded_file:
+    data = pd.read_csv(uploaded_file)
+    st.subheader("Uploaded Sensor Data")
+    st.dataframe(data)
 
-# Kc values by stage
-kc_values = {
-    "Initial": 0.45,
-    "Vegetative": 0.75,
-    "Flowering": 1.15,
-    "Maturity": 0.80
-}
+    # Expecting: ET0, rain_mm, soil_moisture, NDVI, stage
+    kc_values = {
+        "Initial": 0.45,
+        "Vegetative": 0.75,
+        "Flowering": 1.15,
+        "Maturity": 0.80
+    }
 
-kc = kc_values[stage]
-ETc = kc * ET0
-net_irrigation = max(ETc - forecast_rain, 0.0)
+    # Add decision results
+    results = []
 
-st.title("Smart Irrigation Recommendation")
-st.write(f"### Selected Stage: {stage}")
-st.write(f"Kc = {kc}, ET₀ = {ET0:.2f} mm/day → ETc = {ETc:.2f} mm/day")
+    for _, row in data.iterrows():
+        stage = row["stage"]
+        ET0 = float(row["ET0"])
+        rain = float(row["rain_mm"])
+        soil = float(row["soil_moisture"])
+        ndvi = float(row["NDVI"])
+        kc = kc_values.get(stage, 0.75)
+        ETc = kc * ET0
+        net_irrigation = max(ETc - rain, 0.0)
 
-# Treatment-wise logic
-st.subheader("Irrigation Recommendation per Treatment")
+        # T1
+        T1 = "Manual decision by farmer"
 
-# T1: Manual
-st.write("#### T1: Manual")
-st.write("→ No data used. Farmer irrigates based on personal judgement.")
+        # T2
+        T2 = "Irrigate" if soil < 70 and rain < 2 and stage in ["Vegetative", "Flowering"] else "No Irrigation"
 
-# T2 Logic
-st.write("#### T2: Soil Moisture + Rain Forecast")
-if soil_moisture < 70 and forecast_rain < 2 and stage in ["Vegetative", "Flowering"]:
-    st.success("→ T2: Irrigation Recommended")
+        # T3
+        ndvi_thresh = 0.7 if stage == "Vegetative" else 0.75
+        T3 = "Irrigate" if ndvi < ndvi_thresh and rain < 2 and stage in ["Vegetative", "Flowering"] else "No Irrigation"
+
+        # T4
+        T4 = f"Irrigate ({net_irrigation:.2f} L/m²)" if (net_irrigation > 0 and soil < 80 and ndvi < 0.75 and stage in ["Vegetative", "Flowering"]) else "No Irrigation"
+
+        results.append({
+            "stage": stage,
+            "ET₀": ET0,
+            "Kc": kc,
+            "ETc": ETc,
+            "Forecast Rain (mm)": rain,
+            "Soil Moisture (%)": soil,
+            "NDVI": ndvi,
+            "T1": T1,
+            "T2": T2,
+            "T3": T3,
+            "T4": T4
+        })
+
+    result_df = pd.DataFrame(results)
+    st.subheader("Irrigation Recommendations")
+    st.dataframe(result_df)
+
+    # Plot some of the uploaded variables
+    st.subheader("Sensor Data Visualization")
+    fig, ax = plt.subplots(figsize=(10, 4))
+    data.plot(x=data.index, y=["ET0", "rain_mm", "soil_moisture", "NDVI"], ax=ax, marker='o')
+    plt.title("Sensor Data Trends")
+    plt.ylabel("Values")
+    plt.xlabel("Record Index")
+    plt.grid(True)
+    st.pyplot(fig)
 else:
-    st.info("→ T2: No Irrigation Needed")
-
-# T3 Logic
-st.write("#### T3: NDVI + Rain Forecast")
-ndvi_thresh = 0.7 if stage == "Vegetative" else 0.75
-if NDVI < ndvi_thresh and forecast_rain < 2 and stage in ["Vegetative", "Flowering"]:
-    st.success("→ T3: Irrigation Recommended")
-else:
-    st.info("→ T3: No Irrigation Needed")
-
-# T4 Logic
-st.write("#### T4: Integrated (ETc, Soil, NDVI, Rain)")
-if (net_irrigation > 0 and soil_moisture < 80 and NDVI < 0.75 
-    and stage in ["Flowering", "Vegetative"]):
-    st.success(f"→ T4: Irrigation Recommended | Volume: {net_irrigation:.2f} L/m²")
-else:
-    st.info("→ T4: No Irrigation Needed")
-
-# Notes
-st.markdown("---")
-st.caption("Note: 1 mm = 1 L/m² for your 1 m² plot.")
+    st.info("Please upload a CSV file with columns: ET0, rain_mm, soil_moisture, NDVI, stage")
