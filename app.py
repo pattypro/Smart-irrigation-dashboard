@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Smart Irrigation Dashboard: Per-Treatment CSV Upload")
+st.title("Smart Irrigation Dashboard: Per-Treatment Daily Irrigation Forecast")
 
 # Upload per-treatment files
 st.sidebar.header("Upload Data Per Treatment")
@@ -35,19 +35,37 @@ def process_treatment(label, df):
             ndvi = float(row["NDVI"])
             kc = kc_values.get(stage, 0.75)
             ETc = kc * ET0
-            net_irrigation = max(ETc - rain, 0.0)
+            net_irrigation = max(ETc - rain, 0.0)  # mm/day ≈ L/m²/day
 
+            # Logic per treatment
             if label == "T1":
-                decision = "Manual"
+                decision = "Manual – No automated recommendation"
+                volume = "-"
             elif label == "T2":
-                decision = "Irrigate" if soil < 70 and rain < 2 and stage in ["Vegetative", "Flowering"] else "No Irrigation"
+                if soil < 70 and rain < 2 and stage in ["Vegetative", "Flowering"]:
+                    decision = "Irrigate"
+                    volume = f"{net_irrigation:.2f} L/m²"
+                else:
+                    decision = "No Irrigation"
+                    volume = "0.00 L/m²"
             elif label == "T3":
                 ndvi_thresh = 0.7 if stage == "Vegetative" else 0.75
-                decision = "Irrigate" if ndvi < ndvi_thresh and rain < 2 and stage in ["Vegetative", "Flowering"] else "No Irrigation"
+                if ndvi < ndvi_thresh and rain < 2 and stage in ["Vegetative", "Flowering"]:
+                    decision = "Irrigate"
+                    volume = f"{net_irrigation:.2f} L/m²"
+                else:
+                    decision = "No Irrigation"
+                    volume = "0.00 L/m²"
             elif label == "T4":
-                decision = f"Irrigate ({net_irrigation:.2f} L/m²)" if (net_irrigation > 0 and soil < 80 and ndvi < 0.75 and stage in ["Vegetative", "Flowering"]) else "No Irrigation"
+                if net_irrigation > 0 and soil < 80 and ndvi < 0.75 and stage in ["Vegetative", "Flowering"]:
+                    decision = "Irrigate"
+                    volume = f"{net_irrigation:.2f} L/m²"
+                else:
+                    decision = "No Irrigation"
+                    volume = "0.00 L/m²"
             else:
                 decision = "Unknown"
+                volume = "-"
 
             results.append({
                 "stage": stage,
@@ -57,14 +75,15 @@ def process_treatment(label, df):
                 "Forecast Rain (mm)": rain,
                 "Soil Moisture (%)": soil,
                 "NDVI": ndvi,
-                "Recommendation": decision
+                "Recommendation": decision,
+                "Predicted Volume": volume
             })
 
         result_df = pd.DataFrame(results)
-        st.subheader(f"{label} Recommendations")
+        st.subheader(f"{label} Daily Prediction Results")
         st.dataframe(result_df)
 
-        # Plot available values
+        # Plot sensor inputs
         st.subheader(f"{label} Sensor Data Trends")
         columns_to_plot = [col for col in ["ET0", "rain_mm", "soil_moisture", "NDVI"] if col in df.columns]
         if columns_to_plot:
@@ -75,9 +94,9 @@ def process_treatment(label, df):
             plt.grid(True)
             st.pyplot(fig)
     else:
-        st.info(f"Upload CSV for {label} to see recommendations.")
+        st.info(f"Upload CSV for {label} to view predictions.")
 
-# Process each treatment
+# Process uploaded files
 for label, file in treatment_files.items():
     if file:
         df = pd.read_csv(file)
