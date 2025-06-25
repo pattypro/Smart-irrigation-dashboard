@@ -28,11 +28,11 @@ def process_treatment(label, df):
 
         results = []
         for _, row in df.iterrows():
-            stage = row["stage"]
-            ET0 = float(row["ET0"])
-            rain = float(row["rain_mm"])
-            soil = float(row["soil_moisture"])
-            ndvi = float(row["NDVI"])
+            stage = row.get("stage", "Vegetative")
+            ET0 = float(row.get("ET0", 0.0))
+            rain = float(row.get("rain_mm", 0.0))
+            soil = float(row.get("soil_moisture", 100))
+            ndvi = float(row.get("NDVI", 0.8))  # Default NDVI if not present
             kc = kc_values.get(stage, 0.75)
             ETc = kc * ET0
             net_irrigation = max(ETc - rain, 0.0)  # mm/day ≈ L/m²/day
@@ -74,7 +74,7 @@ def process_treatment(label, df):
                 "ETc": ETc,
                 "Forecast Rain (mm)": rain,
                 "Soil Moisture (%)": soil,
-                "NDVI": ndvi,
+                "NDVI": ndvi if "NDVI" in df.columns else "N/A",
                 "Recommendation": decision,
                 "Predicted Volume": volume
             })
@@ -83,7 +83,7 @@ def process_treatment(label, df):
         st.subheader(f"{label} Daily Prediction Results")
         st.dataframe(result_df)
 
-        # Plot sensor inputs
+        # Plot available columns
         st.subheader(f"{label} Sensor Data Trends")
         columns_to_plot = [col for col in ["ET0", "rain_mm", "soil_moisture", "NDVI"] if col in df.columns]
         if columns_to_plot:
