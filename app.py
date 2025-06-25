@@ -3,7 +3,18 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Smart Irrigation Dashboard: Per-Treatment Decision Support")
+st.title("Patrick's Irrigation Dashboard")
+
+st.markdown("""
+### 💧 Water Prediction Formula
+The irrigation volume is based on the crop evapotranspiration (ETc) adjusted for rainfall:
+
+**ETc = Kc × ET₀**  
+**Net Irrigation = ETc − Rain Forecast**
+
+If Net Irrigation > 0, irrigation is needed.  
+1 mm = 1 L/m² for your 1 m² plot.
+""")
 
 # Upload per-treatment files
 st.sidebar.header("Upload Data Per Treatment")
@@ -32,18 +43,18 @@ def process_treatment(label, df):
             stage = row.get("stage", "Vegetative")
             ET0 = float(row.get("ET0", 0.0))
             rain = float(row.get("rain_mm", 0.0))
-            soil = float(row.get("soil_moisture", 100))
-            ndvi = float(row.get("NDVI", 0.8))  # Optional
+            soil = float(row.get("soil_moisture", 100)) if "soil_moisture" in row else 100
+            ndvi = float(row.get("NDVI", 0.8)) if "NDVI" in row else 0.8
             kc = kc_values.get(stage, 0.75)
             ETc = kc * ET0
             net_irrigation = max(ETc - rain, 0.0)
 
-            # T1: No automation
+            # T1: Manual
             if label == "T1":
                 decision = "Manual – Farmer determines irrigation"
                 volume = "-"
 
-            # T2 Logic: Soil + Rain + Stage (active growth)
+            # T2 Logic
             elif label == "T2":
                 if soil < 70 and rain < 2 and stage in ["Vegetative", "Flowering", "Fruiting"]:
                     decision = "Irrigate"
@@ -52,7 +63,7 @@ def process_treatment(label, df):
                     decision = "No Irrigation"
                     volume = "0.00 L/m²"
 
-            # T3 Logic: NDVI + Rain + Stage
+            # T3 Logic
             elif label == "T3":
                 ndvi_thresh = 0.7 if stage == "Vegetative" else 0.75
                 if ndvi < ndvi_thresh and rain < 2 and stage in ["Vegetative", "Flowering", "Fruiting"]:
@@ -62,7 +73,7 @@ def process_treatment(label, df):
                     decision = "No Irrigation"
                     volume = "0.00 L/m²"
 
-            # T4 Logic: ETc > Rain + Soil + NDVI + Stage (flowering/fruition only)
+            # T4 Logic
             elif label == "T4":
                 if net_irrigation > 0 and soil < 80 and ndvi < 0.75 and stage in ["Flowering", "Fruiting"]:
                     decision = "Irrigate"
@@ -80,7 +91,7 @@ def process_treatment(label, df):
                 "Kc": kc,
                 "ETc": ETc,
                 "Rain Forecast (mm)": rain,
-                "Soil Moisture (%)": soil,
+                "Soil Moisture (%)": soil if "soil_moisture" in df.columns else "N/A",
                 "NDVI": ndvi if "NDVI" in df.columns else "N/A",
                 "Recommendation": decision,
                 "Predicted Volume": volume
@@ -90,7 +101,7 @@ def process_treatment(label, df):
         st.subheader(f"{label} Daily Irrigation Recommendation")
         st.dataframe(result_df)
 
-        # Plot if data available
+        # Plot if possible
         st.subheader(f"{label} Sensor Data Trend")
         cols = [col for col in ["ET0", "rain_mm", "soil_moisture", "NDVI"] if col in df.columns]
         if cols:
@@ -102,9 +113,3 @@ def process_treatment(label, df):
             st.pyplot(fig)
     else:
         st.info(f"Upload a CSV for {label} to process irrigation decisions.")
-
-# Run for each treatment
-for label, file in treatment_files.items():
-    if file:
-        df = pd.read_csv(file)
-        process_treatment(label, df)
