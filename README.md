@@ -1,22 +1,19 @@
+# Patrick’s Irrigation Dashboard
 
-# Smart Irrigation Dashboard v2
+This is a Streamlit-based smart irrigation decision support tool designed to work with soil moisture sensors, NDVI values, and weather forecasts to guide irrigation for tomatoes and spinach.
 
-This upgraded Streamlit app allows:
-- Uploading CSV files with sensor data
-- Generating irrigation recommendations for T1–T4 treatments
-- Visualizing uploaded sensor data
+## Setup
 
-## How to Run
+Install dependencies:
 
 ```bash
-pip install streamlit pandas matplotlib
+pip install -r requirements.txt
+```
+
+Run the app:
+
+```bash
 streamlit run app.py
 ```
 
-## CSV Format Required
-
-| ET0 | rain_mm | soil_moisture | NDVI | stage       |
-|-----|---------|----------------|------|-------------|
-| 4.0 | 1.5     | 65             | 0.68 | Flowering   |
-
-The app will show recommendations and graphs based on this data.
+Upload treatment-specific CSV files to get irrigation recommendations.
